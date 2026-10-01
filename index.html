@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>LightCycles</title>
+  <meta name="description" content="LightCycles - a free retro-style neon light-cycle arena game: snappy grid steering, permanent light walls, rival AI cycles, discs and T-walls.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2305071a'/%3E%3Cpath d='M16 3l5 15 7 9-8-3-4 4-4-4-8 3 7-9z' fill='%2337e6ff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+  <canvas id="game" aria-label="LightCycles game screen"></canvas>
+
+  <div id="ui">
+    <section id="title" class="screen">
+      <h1 class="logo"><span class="l1">LIGHT</span><span class="l2">CYCLES</span></h1>
+      <p class="tag">Cut them off. Derez everything.</p>
+      <div class="menu">
+        <button id="btnStart" class="primary">CAMPAIGN</button>
+        <button id="btnSurvival">SURVIVAL</button>
+        <button id="btnScores">HIGH SCORES</button>
+        <button id="btnSettings">SETTINGS</button>
+      </div>
+      <p class="hint"><b>W A S D</b> / <b>arrows</b>: steer &nbsp; <b>Shift</b>: boost &nbsp; <b>Space</b>: disc &nbsp; <b>E</b> / <b>Enter</b>: T-wall &nbsp; <b>P</b>: pause</p>
+      <footer class="credit">Free to play and share &middot; <a href="https://github.com/nbwillcox/lightCycles" target="_blank" rel="noopener">github.com/nbwillcox/lightCycles</a> &middot; <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a></footer>
+    </section>
+
+    <section id="pause" class="screen hidden">
+      <h2>PAUSED</h2>
+      <div class="menu">
+        <button id="btnResume" class="primary">RESUME</button>
+        <button id="btnPauseSettings">SETTINGS</button>
+        <button id="btnQuit">QUIT TO TITLE</button>
+      </div>
+    </section>
+
+    <section id="settings" class="screen hidden">
+      <h2>SETTINGS</h2>
+      <div class="panel">
+        <label>Master volume <input id="setMaster" type="range" min="0" max="1" step="0.05"></label>
+        <label>Music volume <input id="setMusic" type="range" min="0" max="1" step="0.05"></label>
+        <label>Effects volume <input id="setSfx" type="range" min="0" max="1" step="0.05"></label>
+        <label class="check"><input id="setBloom" type="checkbox"> Bloom glow</label>
+        <label class="check"><input id="setShake" type="checkbox"> Screen shake</label>
+        <label class="check"><input id="setReduced" type="checkbox"> Reduced motion (fewer flashes &amp; particles)</label>
+      </div>
+      <div class="menu"><button id="btnSettingsBack" class="primary">BACK</button></div>
+    </section>
+
+    <section id="scores" class="screen hidden">
+      <h2>HIGH SCORES</h2>
+      <ol id="scoreList" class="scorelist"></ol>
+      <div class="menu">
+        <button id="btnScoresPlay" class="primary">PLAY AGAIN</button>
+        <button id="btnScoresBack">TITLE</button>
+      </div>
+    </section>
+
+    <section id="gameover" class="screen hidden">
+      <h2 class="over">GAME OVER</h2>
+      <p class="final">Score <b id="goScore">0</b> &middot; Stage <b id="goStage">1</b></p>
+      <div id="goEntry" class="entry hidden">
+        <p class="newhs">NEW HIGH SCORE! Enter your initials</p>
+        <input id="goName" type="text" maxlength="3" autocomplete="off" spellcheck="false" aria-label="Your initials">
+        <div class="menu"><button id="btnSaveScore" class="primary">SAVE SCORE</button></div>
+      </div>
+      <div id="goButtons" class="menu">
+        <button id="btnRetry" class="primary">PLAY AGAIN</button>
+        <button id="btnGoTitle">TITLE</button>
+      </div>
+    </section>
+  </div>
+
+  <noscript><p style="color:#fff;padding:2rem">LightCycles needs JavaScript enabled.</p></noscript>
+
+  <script src="js/util.js?v=1"></script>
+  <script src="js/config.js?v=1"></script>
+  <script src="js/audio.js?v=1"></script>
+  <script src="js/gfx.js?v=1"></script>
+  <script src="js/fx.js?v=1"></script>
+  <script src="js/input.js?v=1"></script>
+  <script src="js/scores.js?v=1"></script>
+  <script src="js/arena.js?v=1"></script>
+  <script src="js/cycles.js?v=1"></script>
+  <script src="js/ai.js?v=1"></script>
+  <script src="js/game.js?v=1"></script>
+  <script src="js/hud.js?v=1"></script>
+  <script src="js/ui.js?v=1"></script>
+  <script src="js/main.js?v=1"></script>
+</body>
+</html>
