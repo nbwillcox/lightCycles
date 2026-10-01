@@ -2,13 +2,13 @@
 (function (G) {
   'use strict';
   const U = G.U, C = G.C, S = G.settings, FX = G.fx, GFX = G.gfx, A = G.audio, I = G.input, Game = G.game, UI = G.ui, HUD = G.hud;
-  const W = C.W, H = C.H, STEP = 1 / 120;
+  const W = C.W, H = C.H, STEP = 1 / 60;
   const mk = () => document.createElement('canvas');
   const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
   const scene = mk(), sctx = scene.getContext('2d');
   const b1 = mk(), b2 = mk(), b3 = mk();
   const bctx = [b1.getContext('2d'), b2.getContext('2d'), b3.getContext('2d')];
-  const view = (G.view = { ox: 0, oy: 0, s: 1, w: 0, h: 0, dpr: 1, ps: 1 });
+  const view = (G.view = { ox: 0, oy: 0, s: 1, w: 0, h: 0, dpr: 1, ps: 1, rs: 1 });
   const params = new URLSearchParams(location.search);
   G.debug = { stage: parseInt(params.get('stage'), 10) || 0, god: params.get('god') === '1' };
   const WORLD_HUE = [195, 28, 310, 140, 215];
@@ -16,86 +16,91 @@
   const M = { mode: 'title' };
   G.main = M;
 
-  function initStars() {
-    const n = U.clamp(Math.round(view.w * view.h / 6500), 90, 420);
-    bg.stars = [];
-    for (let i = 0; i < n; i++) bg.stars.push({ x: Math.random() * view.w, y: Math.random() * view.h, z: Math.random(), tw: Math.random() * 6 });
-  }
-  function resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2), w = Math.max(64, window.innerWidth), h = Math.max(64, window.innerHeight);
-    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-    const s = Math.min(w / W, h / H);
-    view.w = w; view.h = h; view.dpr = dpr; view.s = s;
-    view.ox = (w - W * s) / 2; view.oy = (h - H * s) / 2;
-    view.ps = Math.min(s * dpr, 1.75);
-    scene.width = Math.round(W * view.ps); scene.height = Math.round(H * view.ps);
-    b1.width = scene.width >> 1; b1.height = scene.height >> 1;
-    b2.width = scene.width >> 2; b2.height = scene.height >> 2;
+  /* adaptive resolution: if frames run long (busy GPU/CPU), shrink the scene canvas; grow it back when there's headroom */
+  let qual = 1, ema = 1 / 60, qT = 0;
+  function sizeScene() {
+    // the whole canvas (not just the scene layer) renders at a reduced internal resolution when we're struggling
+    const rs = view.dpr * Math.max(0.6, qual);
+    if (Math.abs(rs - view.rs) > 0.001 || canvas.width !== Math.round(view.w * rs)) { view.rs = rs; canvas.width = Math.round(view.w * rs); canvas.height = Math.round(view.h * rs); }
+    view.ps = Math.min(view.s * view.rs, 1.25);
+    G.arena.setScale(view.s * view.rs); G.cycles.setScale(view.ps);
+    scene.width = Math.max(16, Math.round(W * view.ps)); scene.height = Math.max(16, Math.round(H * view.ps));
+    b1.width = Math.max(8, scene.width >> 1); b1.height = Math.max(8, scene.height >> 1);
+    b2.width = Math.max(8, scene.width >> 2); b2.height = Math.max(8, scene.height >> 2);
     b3.width = Math.max(8, scene.width >> 3); b3.height = Math.max(8, scene.height >> 3);
-    initStars();
+  }
+  function adapt(dt) {
+    if (dt >= 0.09) return;
+    ema += (dt - ema) * 0.04; qT += dt;
+    if (qT < 1.2) return;
+    qT = 0;
+    if (ema > 0.027 && qual > 0.55) { qual = Math.max(0.55, qual - 0.15); sizeScene(); }
+    else if (ema < 0.019 && qual < 1) { qual = Math.min(1, qual + 0.05); sizeScene(); }
+    M.bloomOn = !(qual <= 0.6 && ema > 0.03);
+  }
+  M.quality = () => ({ qual: +qual.toFixed(2), ema: +ema.toFixed(4), rs: +view.rs.toFixed(2), ps: +view.ps.toFixed(2), canvas: canvas.width + 'x' + canvas.height, scene: scene.width + 'x' + scene.height, bloom: M.bloomOn !== false });
+  M._adapt = adapt;
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5), w = Math.max(64, window.innerWidth), h = Math.max(64, window.innerHeight);
+    const s = Math.min(w / W, h / H);
+    view.w = w; view.h = h; view.dpr = dpr; view.s = s; view.rs = 0;
+    view.ox = (w - W * s) / 2; view.oy = (h - H * s) / 2;
+    sizeScene();
+    bg.cache = null;
   }
   window.addEventListener('resize', resize);
 
-  function drawBackground(dt) {
-    const w = view.w, h = view.h, slow = S.reduced ? 0.3 : 1;
-    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-    ctx.fillStyle = '#03040d'; ctx.fillRect(0, 0, w, h);
+  /* the nebula/star backdrop is painted once into a half-size canvas and only blitted; skipped when the playfield covers the window */
+  function buildBg() {
     const hue = WORLD_HUE[Game.world || 0];
-    if (hue !== bg.hue) { bg.hue = hue; bg.pat = ctx.createPattern(GFX.nebula(hue), 'repeat'); bg.pat2 = ctx.createPattern(GFX.nebula(hue + 40), 'repeat'); }
-    bg.scroll += dt * 14 * slow;
-    ctx.save();
-    ctx.translate(0, bg.scroll % 1024);
-    ctx.fillStyle = bg.pat; ctx.fillRect(0, -1024, w, h + 1024);
-    ctx.restore();
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55;
-    ctx.scale(1.7, 1.7); ctx.translate(0, (bg.scroll * 0.6) % 1024);
-    ctx.fillStyle = bg.pat2; ctx.fillRect(0, -1024, w / 1.7, h / 1.7 + 1024);
-    ctx.restore();
-    for (const st of bg.stars) {
-      const sp = 18 + st.z * st.z * 150;
-      st.y += sp * dt * slow;
-      if (st.y > h) { st.y = -4; st.x = Math.random() * w; }
-      const tw = 0.65 + 0.35 * Math.sin(st.tw + bg.scroll * (1 + st.z));
-      ctx.globalAlpha = (0.25 + st.z * 0.75) * tw;
-      ctx.fillStyle = st.z > 0.85 ? '#bfe6ff' : st.z > 0.5 ? '#ffffff' : '#9db4e6';
-      const sz = 0.7 + st.z * 1.8;
-      ctx.fillRect(st.x, st.y, sz, sz * (1 + sp / 120));
-    }
-    ctx.globalAlpha = 1;
+    const c = mk(); c.width = Math.ceil(view.w / 2); c.height = Math.ceil(view.h / 2);
+    const x = c.getContext('2d');
+    x.scale(0.5, 0.5);
+    x.fillStyle = '#03040d'; x.fillRect(0, 0, view.w, view.h);
+    x.fillStyle = x.createPattern(GFX.nebula(hue), 'repeat'); x.fillRect(0, 0, view.w, view.h);
+    x.save(); x.globalCompositeOperation = 'lighter'; x.globalAlpha = 0.55; x.scale(1.7, 1.7);
+    x.fillStyle = x.createPattern(GFX.nebula(hue + 40), 'repeat'); x.fillRect(0, 0, view.w / 1.7, view.h / 1.7); x.restore();
+    const n = U.clamp(Math.round(view.w * view.h / 9000), 60, 260);
+    for (let i = 0; i < n; i++) { const z = Math.random(); x.globalAlpha = 0.25 + z * 0.75; x.fillStyle = z > 0.85 ? '#bfe6ff' : z > 0.5 ? '#ffffff' : '#9db4e6'; const sz = 0.8 + z * 1.8; x.fillRect(Math.random() * view.w, Math.random() * view.h, sz, sz); }
+    bg.cache = c; bg.hue = hue;
+  }
+  function drawBackground() {
+    if (Game.hasBackdrop && view.ox < 1 && view.oy < 1) return;
+    if (!bg.cache || bg.hue !== WORLD_HUE[Game.world || 0]) buildBg();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(bg.cache, 0, 0, canvas.width, canvas.height);
   }
 
-  function render(dt) {
-    if (scene.width < 16 || scene.height < 16) { resize(); return; }
-    drawBackground(dt);
+  function render() {
+    drawBackground();
     sctx.setTransform(1, 0, 0, 1, 0, 0);
     sctx.clearRect(0, 0, scene.width, scene.height);
     sctx.setTransform(view.ps, 0, 0, view.ps, 0, 0);
     if (FX.shake > 0) sctx.translate(U.rand(-FX.shake, FX.shake), U.rand(-FX.shake, FX.shake));
     Game.render(sctx);
-    ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    ctx.setTransform(view.rs, 0, 0, view.rs, 0, 0);
     HUD.sides(ctx, view, Game);
     ctx.save();
     ctx.translate(view.ox, view.oy); ctx.scale(view.s, view.s);
     if (Game.hasBackdrop) Game.drawBackdrop(ctx); else { ctx.fillStyle = 'rgba(2,4,16,0.42)'; ctx.fillRect(0, 0, W, H); }
-    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'low';
     ctx.drawImage(scene, 0, 0, W, H);
-    if (S.bloom) {
+    if (S.bloom && M.bloomOn !== false) {
       bctx[0].clearRect(0, 0, b1.width, b1.height); bctx[0].drawImage(scene, 0, 0, b1.width, b1.height);
       bctx[1].clearRect(0, 0, b2.width, b2.height); bctx[1].drawImage(b1, 0, 0, b2.width, b2.height);
       bctx[2].clearRect(0, 0, b3.width, b3.height); bctx[2].drawImage(b2, 0, 0, b3.width, b3.height);
+      // fold the widest blur back into the mid blur (cheap, tiny canvases) so only ONE full-screen additive blit is needed
+      bctx[1].globalCompositeOperation = 'lighter'; bctx[1].globalAlpha = 0.85; bctx[1].drawImage(b3, 0, 0, b2.width, b2.height);
+      bctx[1].globalAlpha = 1; bctx[1].globalCompositeOperation = 'source-over';
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.36; ctx.drawImage(b2, 0, 0, W, H);
-      ctx.globalAlpha = 0.3; ctx.drawImage(b3, 0, 0, W, H);
+      ctx.globalAlpha = 0.4; ctx.drawImage(b2, 0, 0, W, H);
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     }
     (HUD.drawAll || HUD.draw)(ctx, Game);
     if (FX.flash > 0) { ctx.fillStyle = 'rgba(' + FX.flashColor + ',' + Math.min(0.75, FX.flash * 0.7) + ')'; ctx.fillRect(0, 0, W, H); }
     ctx.restore();
     ctx.strokeStyle = 'rgba(55,230,255,0.45)'; ctx.lineWidth = 1.5;
-    ctx.shadowColor = 'rgba(55,230,255,0.9)'; ctx.shadowBlur = 12;
     ctx.strokeRect(view.ox, view.oy, W * view.s, H * view.s);
-    ctx.shadowBlur = 0;
   }
 
   /* ---------- app modes ---------- */
@@ -152,7 +157,8 @@
         acc -= STEP;
       }
     }
-    render(dt);
+    adapt(dt);
+    render();
   }
 
   document.addEventListener('visibilitychange', () => { if (document.hidden) M.pause(); });

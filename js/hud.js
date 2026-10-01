@@ -9,9 +9,8 @@
   function txt(ctx, s, x, y, size, color, align, weight, glow) {
     ctx.font = (weight || 800) + ' ' + size + 'px ' + FONT;
     ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
-    if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 10; }
-    ctx.fillStyle = color; ctx.fillText(s, x, y);
-    ctx.shadowBlur = 0;
+    ctx.fillStyle = color; ctx.fillText(s, x, y); // glow comes from the bloom pass; per-text shadow blur is far too costly to run every frame
+    void glow;
   }
   HUD.txt = txt;
 
@@ -76,21 +75,38 @@
 
   HUD.drawAll = function (ctx, g) { HUD.draw(ctx, g); if (!g.demo) { HUD.countdown(ctx, g); HUD.banner(ctx, g); } };
 
-  HUD.sides = function (ctx, v) {
+  /* side panels are painted once into an offscreen canvas and re-blitted; rebuilt only when the window or the top scores change */
+  let sideCache = null, sideKey = '';
+  function paintSides(ctx, v) {
     const sw = v.ox;
-    if (sw < 150) return;
     const sc = Math.min(1.15, sw / 240), cx1 = sw / 2, cx2 = v.ox + W * v.s + sw / 2, top = v.oy + 70 * sc;
     const col = 'rgba(160,215,255,0.8)';
-    ctx.save();
-    txt(ctx, 'LIGHTCYCLES', cx1, top, 15 * sc, '#ffffff', 'center', 900, 'rgba(90,200,255,0.9)');
+    txt(ctx, 'LIGHTCYCLES', cx1, top, 15 * sc, '#ffffff', 'center', 900);
     const help = ['STEER', 'W A S D  /  ARROWS', 'BOOST', 'SHIFT (HOLD)', 'DISC', 'SPACE', 'T-WALL', 'E  /  ENTER', 'PAUSE', 'P  /  ESC'];
     help.forEach((s, i) => txt(ctx, s, cx1, top + 44 * sc + i * 19 * sc, (i % 2 ? 12 : 10) * sc, i % 2 ? col : '#ff9a5d', 'center', i % 2 ? 700 : 800));
-    txt(ctx, 'TOP PROGRAMS', cx2, top, 15 * sc, '#ffffff', 'center', 900, 'rgba(90,200,255,0.9)');
+    txt(ctx, 'TOP PROGRAMS', cx2, top, 15 * sc, '#ffffff', 'center', 900);
     G.scores.list.slice(0, 7).forEach((r, i) => txt(ctx, (i + 1) + '. ' + r.name + '  ' + U.fmt(r.score), cx2, top + 34 * sc + i * 22 * sc, 13 * sc, i === 0 ? '#ffd24a' : col, 'center', 700));
     txt(ctx, 'FREE TO PLAY & SHARE', cx2, top + 230 * sc, 10 * sc, '#ff9a5d', 'center', 800);
     txt(ctx, 'github.com/nbwillcox', cx2, top + 248 * sc, 12 * sc, col, 'center', 700);
     txt(ctx, '/lightCycles', cx2, top + 264 * sc, 12 * sc, col, 'center', 700);
-    ctx.restore();
+  }
+  HUD.sides = function (ctx, v) {
+    if (v.ox < 150) return;
+    const key = [v.w, v.h, v.rs.toFixed(2), Math.round(v.ox), Math.round(v.oy), v.s.toFixed(3), G.scores.list.slice(0, 7).map((r) => r.name + r.score).join(',')].join('|');
+    if (key !== sideKey || !sideCache) {
+      sideKey = key;
+      const sw = v.ox, pw = Math.round(sw * v.rs), ph = Math.round(v.h * v.rs);
+      const full = document.createElement('canvas');
+      full.width = Math.round(v.w * v.rs); full.height = ph;
+      const x = full.getContext('2d');
+      x.scale(v.rs, v.rs);
+      paintSides(x, v);
+      // split into two exact-size strips so each frame only blits what is visible
+      const strip = (sx) => { const c = document.createElement('canvas'); c.width = pw; c.height = ph; c.getContext('2d').drawImage(full, sx, 0, pw, ph, 0, 0, pw, ph); return c; };
+      sideCache = { l: strip(0), r: strip(full.width - pw) };
+    }
+    ctx.drawImage(sideCache.l, 0, 0, v.ox, v.h);
+    ctx.drawImage(sideCache.r, v.w - v.ox, 0, v.ox, v.h);
   };
 
   G.hud = HUD;

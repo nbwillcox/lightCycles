@@ -77,12 +77,19 @@
   Ar._TAU = TAU;
 
   /* ---------- static layer: floor grid + obstacles ---------- */
-  const SC = 1.5;
+  /* pre-rendered at the actual device scale so the per-frame blit is a 1:1 copy (scaled blits of big canvases are the costly part) */
+  Ar.scale = 1.25;
+  Ar.setScale = function (sc) {
+    sc = U.clamp(sc, 0.5, 2.2);
+    if (Math.abs(sc - Ar.scale) < 0.02) return;
+    Ar.scale = sc;
+    if (Ar.grid) Ar.buildStatic();
+  };
   Ar.buildStatic = function () {
-    const T = Ar.theme, c = document.createElement('canvas');
-    c.width = C.W * SC; c.height = C.H * SC;
+    const SC = Ar.scale, T = Ar.theme, c = document.createElement('canvas');
+    c.width = Math.round(C.W * SC); c.height = Math.round(C.H * SC);
     const x = c.getContext('2d');
-    x.scale(SC, SC);
+    x.scale(c.width / C.W, c.height / C.H);
     const bg = x.createRadialGradient(C.W / 2, C.H / 2, 60, C.W / 2, C.H / 2, C.W * 0.65);
     bg.addColorStop(0, T.floor); bg.addColorStop(1, '#010308');
     x.fillStyle = bg; x.fillRect(0, 0, C.W, C.H);
@@ -106,6 +113,10 @@
       }
     }
     x.shadowBlur = 0;
+    x.save();
+    if (Ar.wrap) { x.strokeStyle = 'rgba(190,140,255,0.85)'; x.shadowColor = '#b478ff'; } else { x.strokeStyle = 'rgba(' + T.line + ',0.95)'; x.shadowColor = 'rgba(' + T.line + ',1)'; }
+    x.lineWidth = 3; x.shadowBlur = 14;
+    x.strokeRect(C.OX + 1.5, C.OY + 1.5, COLS * CELL - 3, ROWS * CELL - 3); x.restore();
     Ar.staticCanvas = c;
   };
 
@@ -119,13 +130,17 @@
       if (horiz) ctx.fillRect(C.OX + p, C.OY + k * CELL - 1, 22, 2); else ctx.fillRect(C.OX + k * CELL - 1, C.OY + p, 2, 22);
     }
     ctx.restore();
-    ctx.save();
     if (Ar.wrap) {
-      ctx.strokeStyle = 'rgba(180,120,255,' + (0.55 + 0.25 * Math.sin(t * 5)) + ')'; ctx.lineWidth = 3; ctx.setLineDash([14, 10]); ctx.lineDashOffset = -t * 40;
-      ctx.shadowColor = '#b478ff'; ctx.shadowBlur = 14;
-    } else { ctx.strokeStyle = 'rgba(' + T.line + ',0.95)'; ctx.lineWidth = 3; ctx.shadowColor = 'rgba(' + T.line + ',1)'; ctx.shadowBlur = 14; }
-    ctx.strokeRect(C.OX + 1.5, C.OY + 1.5, w - 3, h - 3);
-    ctx.restore();
+      // portal shimmer: bright dashes circling the perimeter (cheap fills instead of an animated dashed stroke)
+      const per = 2 * (w + h);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(225,190,255,0.9)';
+      for (let i = 0; i < 22; i++) {
+        let d = ((t * 90 + i * per / 22) % per), x, y;
+        if (d < w) { x = C.OX + d; y = C.OY + 1.5; } else if (d < w + h) { x = C.OX + w - 1.5; y = C.OY + d - w; } else if (d < 2 * w + h) { x = C.OX + w - (d - w - h); y = C.OY + h - 1.5; } else { x = C.OX + 1.5; y = C.OY + h - (d - 2 * w - h); }
+        ctx.fillRect(x - 5, y - 2.2, 10, 4.4);
+      }
+      ctx.restore();
+    }
   };
 
   Ar.drawGates = function (ctx, t) {

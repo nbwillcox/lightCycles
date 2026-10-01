@@ -11,6 +11,44 @@
 
   Cy.byId = (g, id) => g.cycles.find((q) => q.id === id);
 
+  /* Trails live in an offscreen layer: new cells are drawn incrementally, removals trigger a (throttled) rebuild. */
+  Cy.scale = 1.25;
+  let layer = null, lctx = null, dirty = true, lastRebuild = -1;
+  Cy.initLayer = function () {
+    layer = document.createElement('canvas');
+    layer.width = Math.round(C.W * Cy.scale); layer.height = Math.round(C.H * Cy.scale);
+    lctx = layer.getContext('2d');
+    lctx.scale(layer.width / C.W, layer.height / C.H); lctx.lineCap = 'round'; lctx.lineJoin = 'round';
+    dirty = true; lastRebuild = -1;
+  };
+  Cy.setScale = function (sc) {
+    sc = U.clamp(sc, 0.5, 2.2);
+    if (Math.abs(sc - Cy.scale) < 0.02) return;
+    Cy.scale = sc;
+    if (layer) Cy.initLayer();
+  };
+  Cy.markDirty = () => { dirty = true; };
+  function strokeStack(x, hue) {
+    x.strokeStyle = 'hsla(' + hue + ',100%,55%,0.34)'; x.lineWidth = 9; x.stroke();
+    x.strokeStyle = 'hsla(' + hue + ',100%,68%,0.95)'; x.lineWidth = 4; x.stroke();
+    x.strokeStyle = 'rgba(255,255,255,0.88)'; x.lineWidth = 1.6; x.stroke();
+  }
+  Cy.addSeg = function (cy, idx) {
+    if (!lctx || dirty) return;
+    lctx.beginPath(); lctx.moveTo(Ar.segX[idx], Ar.segY[idx]); lctx.lineTo(Ar.cx(idx % COLS), Ar.cy((idx / COLS) | 0));
+    strokeStack(lctx, cy.hue);
+  };
+  function rebuildLayer(g) {
+    lctx.clearRect(0, 0, C.W, C.H);
+    for (const cy of g.cycles) {
+      if (!cy.trail.length) continue;
+      lctx.beginPath();
+      for (const idx of cy.trail) { lctx.moveTo(Ar.segX[idx], Ar.segY[idx]); lctx.lineTo(Ar.cx(idx % COLS), Ar.cy((idx / COLS) | 0)); }
+      strokeStack(lctx, cy.hue);
+    }
+    dirty = false; lastRebuild = g.time;
+  }
+
   Cy.create = function (g, o) {
     const sp = Ar.spawn(o.slot);
     uid = uid >= 100 ? 1 : uid + 1;
@@ -61,7 +99,8 @@
       Ar.segX[idx] = wrapped ? Ar.cx(cy.c) : ox; Ar.segY[idx] = wrapped ? Ar.cy(cy.r) : oy;
       Ar.born[idx] = g.time;
       cy.trail.push(idx);
-      if (cy.maxLen && cy.trail.length > cy.maxLen) { const old = cy.trail.shift(); if (Ar.grid[old] === cy.id) Ar.grid[old] = 0; }
+      Cy.addSeg(cy, idx);
+      if (cy.maxLen && cy.trail.length > cy.maxLen) { const old = cy.trail.shift(); if (Ar.grid[old] === cy.id) Ar.grid[old] = 0; Cy.markDirty(); }
     }
     for (let i = g.pk.length - 1; i >= 0; i--) {
       const p = g.pk[i];
@@ -91,7 +130,7 @@
     if (o <= 0) return;
     const v = Cy.byId(g, o);
     if (v) { const i = v.trail.indexOf(idx); if (i >= 0) v.trail.splice(i, 1); }
-    Ar.grid[idx] = 0;
+    Ar.grid[idx] = 0; Cy.markDirty();
     FX.sparks(Ar.cx(idx % COLS), Ar.cy((idx / COLS) | 0), 6, 160, v ? 'hsla(' + v.hue + ',100%,70%,1)' : '#fff', 0.35);
   };
   Cy.updateDiscs = function (g, dt) {
@@ -133,7 +172,7 @@
           if (victim && victim.alive && victim.c === idx % COLS && victim.r === ((idx / COLS) | 0)) Cy.derez(g, victim, cy.id);
           Cy.cutCell(g, idx);
         }
-        if (Ar.grid[idx] === 0) { Ar.grid[idx] = cy.id; Ar.segX[idx] = prevX; Ar.segY[idx] = prevY; Ar.born[idx] = g.time; cy.trail.push(idx); }
+        if (Ar.grid[idx] === 0) { Ar.grid[idx] = cy.id; Ar.segX[idx] = prevX; Ar.segY[idx] = prevY; Ar.born[idx] = g.time; cy.trail.push(idx); Cy.addSeg(cy, idx); }
         prevX = Ar.cx(idx % COLS); prevY = Ar.cy((idx / COLS) | 0);
         if (k % 2 === 0) FX.sparks(prevX, prevY, 3, 120, 'hsla(' + cy.hue + ',100%,75%,1)', 0.4);
       }
@@ -183,7 +222,7 @@
         cy.dissolveAcc += dt * 80;
         while (cy.dissolveAcc >= 1 && cy.trail.length) {
           cy.dissolveAcc--;
-          const idx = cy.trail.shift();
+          const idx = cy.trail.shift(); Cy.markDirty();
           if (Ar.grid[idx] === cy.id) { Ar.grid[idx] = 0; if (Math.random() < 0.25) FX.sparks(Ar.segX[idx], Ar.segY[idx], 1, 70, 'hsla(' + cy.hue + ',100%,65%,1)', 0.3, 1.2); }
         }
         if (!cy.trail.length) cy.gone = true;
@@ -251,9 +290,8 @@
     G.gfx.drawGlow(ctx, 'hsla(' + hue + ',100%,60%,1)', 0, 0, cy.boost ? 24 : 17, 0.75);
     if (cy.boost) { ctx.fillStyle = 'hsla(' + hue + ',100%,70%,0.55)'; ctx.beginPath(); ctx.moveTo(-9, -3); ctx.lineTo(-24 - Math.random() * 8, 0); ctx.lineTo(-9, 3); ctx.closePath(); ctx.fill(); }
     ctx.globalCompositeOperation = 'source-over';
-    ctx.shadowColor = 'hsla(' + hue + ',100%,65%,1)'; ctx.shadowBlur = 10;
     ctx.fillStyle = '#05091a'; ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(4, -4.6); ctx.lineTo(-8, -4.2); ctx.lineTo(-10, 0); ctx.lineTo(-8, 4.2); ctx.lineTo(4, 4.6); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'hsl(' + hue + ',100%,68%)'; ctx.lineWidth = 1.8; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'hsl(' + hue + ',100%,68%)'; ctx.lineWidth = 1.8; ctx.stroke();
     ctx.fillStyle = 'hsl(' + hue + ',100%,78%)'; ctx.beginPath(); ctx.ellipse(1, 0, 4.2, 2.4, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.fillRect(6, -0.8, 5, 1.6);
     if (cy.elite) { ctx.strokeStyle = 'rgba(255,230,120,' + (0.6 + 0.3 * Math.sin(t * 8)) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke(); }
@@ -263,17 +301,9 @@
 
   Cy.draw = function (ctx, g) {
     const t = g.time;
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (const cy of g.cycles) {
-      if (!cy.trail.length) continue;
-      const a = cy.alive ? 1 : 0.65;
-      ctx.globalCompositeOperation = 'lighter';
-      trailPath(ctx, cy);
-      ctx.strokeStyle = 'hsla(' + cy.hue + ',100%,55%,' + 0.32 * a + ')'; ctx.lineWidth = 9; ctx.stroke();
-      ctx.strokeStyle = 'hsla(' + cy.hue + ',100%,68%,' + 0.9 * a + ')'; ctx.lineWidth = 4; ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,' + 0.85 * a + ')'; ctx.lineWidth = 1.6; ctx.stroke();
-      ctx.globalCompositeOperation = 'source-over';
-    }
+    if (!layer) Cy.initLayer();
+    if (dirty && g.time - lastRebuild > 0.08) rebuildLayer(g);
+    ctx.drawImage(layer, 0, 0, C.W, C.H);
     for (const d of g.discs) {
       const x = C.OX + (d.x + 0.5) * C.CELL, y = C.OY + (d.y + 0.5) * C.CELL;
       ctx.globalCompositeOperation = 'lighter';

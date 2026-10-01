@@ -4,7 +4,7 @@
   const U = G.U, S = G.settings, TAU = U.TAU;
   const FX = { add: [], norm: [], texts: [], shake: 0, flash: 0, flashColor: '255,255,255' };
   const pool = [];
-  const MAX = 900;
+  const MAX = 600;
 
   const col = (h, l) => `hsla(${Math.round(h / 10) * 10},100%,${l || 60}%,1)`;
   FX.col = col;

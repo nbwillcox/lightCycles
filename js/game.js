@@ -53,6 +53,7 @@
     this.round = n;
     Ar.reset(this.makeSpec(n), Math.floor((n - 1) / C.ELITE_EVERY));
     this.world = Ar.themeIdx;
+    Cy.initLayer();
     this.cycles = []; this.pk = []; this.discs = []; this.pkT = 3;
     const sp = this.speedFor(n), surv = this.mode === 'survival', cap = surv ? 90 : 0;
     if (this.mode === 'attract') {
