@@ -16,6 +16,10 @@ Everything is generated in code: the arena, cycles and effects are drawn on the 
 | Fire the T-wall | `E` or `Enter` |
 | Pause | `P` or `Esc` |
 
+### On a phone or tablet
+
+Play in landscape. Swipe anywhere on the screen to turn; hold **BOOST**, tap **DISC** to throw a disc and **T-WALL** to fire the wall. The pause button opens the menu. The on-screen controls appear on touch devices automatically; Settings has size, opacity and a left-handed layout. Use your browser's *Add to Home Screen* to install it as a full-screen app.
+
 ## Gameplay
 
 - Cycles move one grid cell per tick on a 64x34 arena. Every cycle lays down a solid wall of light that stays until the cycle is derezzed; hit any wall, obstacle, or the arena edge and you derez.

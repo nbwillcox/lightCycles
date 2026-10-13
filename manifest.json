@@ -1,0 +1,38 @@
+{
+  "name": "LightCycles",
+  "short_name": "LightCycles",
+  "description": "LightCycles - a free retro-style neon light-cycle arena game: snappy grid steering, permanent light walls, rival AI cycles, discs and T-walls.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "orientation": "landscape",
+  "background_color": "#05071a",
+  "theme_color": "#05071a",
+  "categories": [
+    "games"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
