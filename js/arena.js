@@ -81,7 +81,7 @@
   Ar.scale = 1.25;
   Ar.setScale = function (sc) {
     sc = U.clamp(sc, 0.5, 2.2);
-    if (Math.abs(sc - Ar.scale) < 0.02) return;
+    if (Math.abs(sc - Ar.scale) < Math.max(0.02, Ar.scale * 0.12)) return;                    /* hysteresis: the adaptive-quality steps are small, a rebuild (shadow blurs) is not */
     Ar.scale = sc;
     if (Ar.grid) Ar.buildStatic();
   };
