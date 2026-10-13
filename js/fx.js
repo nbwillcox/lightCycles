@@ -15,7 +15,7 @@
     p.rot = 0; p.vr = 0; p.color = '#fff'; p.lw = 2; p.kind = 'spark'; p.r1 = 0; p.g = 0;
     return Object.assign(p, o);
   }
-  const lim = () => (S.reduced ? 0.4 : 1);
+  const lim = () => (S.reduced ? 0.4 : window.TK && window.TK.on ? 0.7 : 1);                    /* fewer particles on a phone */
 
   FX.reset = function () {
     while (FX.add.length) pool.push(FX.add.pop());
