@@ -20,6 +20,10 @@ Everything is generated in code: the arena, cycles and effects are drawn on the 
 
 Play in landscape. Swipe anywhere on the screen to turn; hold **BOOST**, tap **DISC** to throw a disc and **T-WALL** to fire the wall. The pause button opens the menu. The on-screen controls appear on touch devices automatically; Settings has size, opacity and a left-handed layout. Use your browser's *Add to Home Screen* to install it as a full-screen app.
 
+### Controller
+
+Plug in a gamepad and it just works: left stick or D-pad turns, hold **A / RT** to boost, **X** throws a disc, **B / Y** fires the T-wall, **Start** pauses. In menus the D-pad / left stick moves the highlight, **A** selects, **B** goes back and **Start** plays or resumes. **Settings -> Controller** has a dead-zone slider and lets you remap every button.
+
 ## Gameplay
 
 - Cycles move one grid cell per tick on a 64x34 arena. Every cycle lays down a solid wall of light that stays until the cycle is derezzed; hit any wall, obstacle, or the arena edge and you derez.
